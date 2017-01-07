@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<applications xmlns="http://www.wabacus.com"
+			   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			   xsi:schemaLocation="http://www.wabacus.com ../xsd/wabacus.applications.xsd">
+			   
+<!-- 	copyright©2014	WuBing  All rights reserved.-->			   
+
+<!-- 	ver1.0	2014-8-6 15:16
+		本xml实现销售新产品基础数据的CRUD{增加(Create)、查询(Retrieve)（重新得到数据）、更新(Update)和删除(Delete)}功能
+		基础数据表有2个
+		bp是供应商列表
+		item是物料列表
+-->			   
+			   
+			   
+
+
+<!-- 下面是新产品表的页面   -->	
+     	
+	<page id="npd_newproduct" js="/js/validate.js">
+		<header>${top.header}</header>
+		<vpanel id="common_vpanel" align="center" width="1200px">
+		<report id="title" extends="title.report1"></report>
+		<report id="report1" type="editablelist2" title="新产品列表" dataexport="richexcel">
+			<display>
+				<col column="Id" label="产品编号" displaytype="hidden" clickorderby="true" >
+				<!-- <inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})"></inputbox> -->
+				</col>
+				<col column="Name" label="新产品名称" clickorderby="true" ></col>
+				<col column="cid" label="客户编号" clickorderby="true" >
+				 	<inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})">
+						      <typeprompt width="200" count="15">
+							       <promptcol label="Id" title="编码" matchmode="anywhere"></promptcol>
+							       <promptcol label="Name" title="名称"></promptcol>
+							       <datasource>        
+							       <option dataset="@{select Id,Name from s_b_bp where {#matchcondition#}}"></option>       
+							       </datasource>
+					         </typeprompt>
+					         <autocomplete columns="cname;person" colvaluecondition="Id like '%#cid#%'" dataset="SELECT Id cid,Name cname,salesman person FROM s_b_bp where  {#condition#} order by Id"></autocomplete>
+					</inputbox>
+				</col>				
+				<col column="cname" label="客户名称" clickorderby="true" ></col>
+				<col column="Did" label="图号" clickorderby="true" ></col>
+				<col column="description" label="产品描述" clickorderby="true" ></col>
+				<col column="shape" label="瓶形" clickorderby="true" >
+  					<inputbox type="selectbox">
+							      <option value="方型" label="方型"></option> 
+							      <option value="圆型" label="圆型"></option>
+							      <option value="椭圆型" label="椭圆型"></option>
+							      <option value="三角型" label="三角型"></option>
+							      <option value="异型" label="异型"></option>
+					</inputbox>		
+				</col>
+				<col column="weight" label="产品重量" clickorderby="true" ></col>
+				<col column="capacity" label="满口容量" clickorderby="true" ></col>
+				<col column="expecteddate" label="期望上市时间" width="64" datatype="date{YYYY-MM-DD}" clickorderby="true" >
+ 					<inputbox type="datepicker" jsvalidate="isDate(#data#格式不对，必须为yyyy-MM-dd格式)"> 
+					</inputbox>
+				</col>
+				<col column="yearqty" label="年需求量" clickorderby="true" ></col>
+				<col column="firstqty" label="首批交货数量" clickorderby="true" ></col>
+				<col column="firstdeliver" label="首批交货日期" width="64" datatype="date{YYYY-MM-DD}" clickorderby="true" >
+ 					<inputbox type="datepicker" jsvalidate="isDate(#data#格式不对，必须为yyyy-MM-dd格式)"> 
+					</inputbox>
+				</col>
+				<col column="deliverlocation" label="交货地点" clickorderby="true" ></col>
+				<col column="startdate" label="项目启动日期" width="64" datatype="date{YYYY-MM-DD}" clickorderby="true" >
+ 					<inputbox type="datepicker" jsvalidate="isDate(#data#格式不对，必须为yyyy-MM-dd格式)"> 
+					</inputbox>
+				</col>
+				<col column="decoration" label="后加工描述" clickorderby="true" ></col>
+				<col column="package" label="包装描述" clickorderby="true" ></col>
+				<col column="memo" label="备注" clickorderby="true" ></col>
+				<col column="person" label="销售人员" clickorderby="true" ></col>
+ 				<col column="filldate" label="填表日期" displaytype="hidden" width="64" datatype="date{YYYY-MM-DD}" clickorderby="true" >
+  					<inputbox type="datepicker" jsvalidate="isDate(#data#格式不对，必须为yyyy-MM-dd格式)"> 
+					</inputbox>
+				</col>
+				<col column="tag" label="标志位" displaytype="hidden" clickorderby="true" ></col>
+
+			</display>
+			<sql>
+				<select>
+					<params>
+						<param name="user_id" value="session{user_id}"></param>
+						<param name="user_name" value="session{user_name}"></param>
+					</params>
+    				<value>
+        				<![CDATA[select Id,Name,cid,cname,Did,description,shape,weight,capacity,expecteddate,yearqty,firstqty,firstdeliver,deliverlocation,startdate,decoration,package,memo,person,filldate,tag from  npd_b_newproduct where {#condition#} order by Id]]>
+      				
+    				</value>
+
+
+					<condition name="searchId" label="新产品编码">
+						<value>
+							<![CDATA[(Id = #data# )]]>
+						</value>
+					</condition>
+					<condition name="searchName" label="新产品名称">
+						<value>
+							<![CDATA[(Name like  '%#data#%' )]]>
+						</value>
+					</condition>
+
+				</select>
+				<insert addposition="top">
+ 					<params>
+						<param name="user_id" value="session{user_id}"></param>
+						<param name="user_name" value="session{user_name}"></param>
+						<param name="current_time" value="now{}" datatype="timestamp{yyyy-MM-dd HH:mm:ss}"></param>
+					</params>
+    				<!-- insert into npd_b_newproduct (@{Id},@{Name},@{cid},@{cname},@{Did},@{description},@{shape},@{weight},@{capacity},@{expecteddate},@{yearqty},@{firstqty},@{firstdeliver},@{deliverlocation},@{startdate},@{decoration},@{package},@{memo},@{person},@{filldate},@{tag}); -->
+    				insert into npd_b_newproduct (@{Name},@{cid},@{cname},@{Did},@{description},@{shape},@{weight},@{capacity},@{expecteddate},@{yearqty},@{firstqty},@{firstdeliver},@{deliverlocation},@{startdate},@{decoration},@{package},@{memo},@{person},filldate=#{current_time},tag="0");
+				</insert>
+				<update>
+				    update npd_b_newproduct (Id=@{Id},Name=@{Name},cid=@{cid},cname=@{cname},Did=@{Did},description=@{description},shape=@{shape},weight=@{weight},capacity=@{capacity},expecteddate=@{expecteddate},yearqty=@{yearqty},firstqty=@{firstqty},firstdeliver=@{firstdeliver},deliverlocation=@{deliverlocation},startdate=@{startdate},decoration=@{decoration},package=@{package},memo=@{memo},person=@{person},filldate=@{filldate},tag=@{tag}) where Id=@{Id};
+				    <!-- update npd_b_newproduct (Id=@{Id},Name=@{Name},cid=@{cid},cname=@{cname},Did=@{Did},description=@{description},shape=@{shape},weight=@{weight},capacity=@{capacity},expecteddate=@{expecteddate},yearqty=@{yearqty},firstqty=@{firstqty},firstdeliver=@{firstdeliver},deliverlocation=@{deliverlocation},startdate=@{startdate},decoration=@{decoration},package=@{package},memo=@{memo},person=@{person}) where Id=@{Id}; -->
+
+				</update>
+				 <delete>
+				     delete from npd_b_newproduct where Id=@{Id};
+			  </delete>
+			</sql>
+
+		</report>
+		</vpanel>
+	</page>
+
+</applications>

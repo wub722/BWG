@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<applications xmlns="http://www.wabacus.com"
+			   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			   xsi:schemaLocation="http://www.wabacus.com ../xsd/wabacus.applications.xsd">
+
+<!-- 	copyright©2014	WuBing  All rights reserved.-->
+
+<!-- 	ver1.0		2014/6/17 13:00 			 	
+	本XML里实现采购申请审批功能
+	 流程:各部门填写采购申请后,首先汇总到采购,进行一级审核(价格),在明细单上直接修改确认的价格.最后由领导进行二级审批.	
+ 	 表pur_apply里的tag字段控制
+	状态 
+    0 初始待批
+	1 一级审批通过 	***采购审核价格***
+	2 二级审批通过	***领导审核***
+	5 采购
+	6 入库
+	7 出库
+	9 作废
+
+ -->
+
+
+<!-- pur_approve1 是采购申请单的一级审批     主从报表 -->	
+	<page id="pur_approve1" js="/webresources/script/validate.js" >
+		<header>${top.header}</header>
+	
+	 <tabpanel id="tp1"  titlealign="center" margin="10px" titlestyle="2"> //页签框架,2个页签
+	 
+	 <vpanel id="common_vpanel1" align="center" width="1000px" parenttitle="待审核的采购申请" > 
+	 <report id="title" extends="title.report1"></report>
+ 		<report id="report1"  type="editablelist2" title="待审核的采购申请单"  pagesize="5" dataexport="richexcel" >
+			<display>
+				<col column="Id" label="编号" clickorderby="true" ></col>
+				<col column="filldate" label="填表日期"  datatype="date{yyyy-MM-dd}" clickorderby="true" ></col>
+				<col column="PARAM_VALUE" label="部门" clickorderby="true" >	</col>
+				<col column="amount" label="金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="amounttax" label="含税金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="tag" label="状态"  displaytype="hidden"/>
+				<col column="memo" label="备注"  ></col>
+				<col column="apprdate1" label="价格审核日期" displaytype="hidden"></col>
+			
+			</display>
+			<sql>
+				<select>
+					<value>
+					<![CDATA[select Id,filldate,b.PARAM_VALUE,c.amount,c.amounttax,tag,memo,apprdate1 from pur_d_apply a left join sys_c_set_parm b on a.deptno=b.SEQ and b.PARAM_TYPE='dept' left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax  from pur_d_apply_detail group by Rid) c on a.Id=c.Rid where ({#condition#} or a.tag='0') order by Id]]>
+					</value>			
+					<condition name="searchId" label="申请单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+			<buttons>
+
+				<button name="button1" extends="${wabacus.button.default}" position="title" label="审核" class="com.wabacus.system.buttons.ServerSQLActionButton" confirmessage="确认审核通过?" autoreportdata="true" successprompt="审核成功" failedprompt="审核失败" > 
+
+				    <params>
+						     <param name="now" value="now{}" datatype="timestamp{yyyy-MM-dd HH:mm:ss}"></param>
+						     <param name="total" value="foreign{select sum(qty*price) total  from pur_d_apply_detail where Rid=@{Id} group by Rid}"></param>
+						     <param name="totaltax" value="foreign{select sum(qty*pricetax) totaltax  from pur_d_apply_detail where Rid=@{Id} group by Rid}"></param>
+					</params>
+					<value>
+					<![CDATA[
+				    	update pur_d_apply (amount=#{total},amounttax=#{totaltax},tag="1",apprdate1=#{now}) where Id=@{Id};
+					]]>
+					</value>				    
+				</button> 
+			 </buttons>
+		</report>
+		
+
+		 
+   		<report id="report2" pagesize="-1" type="editablelist2" title="待审核的采购申请单:request{Id}的明细单" depends="report1" dependsparams="txtId2=@{Id}" dataexport="richexcel" >
+			<display>
+					<col column="{sequence:1}" label="序号"  />
+					<col column="Id" displaytype="hidden"  />
+					<col column="Rid" label="采购单号" >
+					</col>
+					<col column="itemid" label="物料号" clickorderby="true" >
+ 						<inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})">
+						      <typeprompt count="15">
+							       <promptcol label="Id" title="物料号" matchmode="anywhere"></promptcol>
+							       <promptcol label="Name" title="中文名"></promptcol>
+							       <datasource>        
+							       <option dataset="@{select Id,Name from pur_b_item where {#matchcondition#}}"></option>       
+							       </datasource>
+					         </typeprompt>
+					     <autocomplete columns="Name;price" colvaluecondition="Id like '%#itemid#%'" dataset="SELECT Id itemid,Name,lastprice price FROM pur_b_item where  {#condition#} order by Id"></autocomplete>
+					     </inputbox> 
+					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>
+					
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+					<col column="qty" label="数量" clickorderby="true" />
+			</display>
+			
+
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,itemid,Name,unit,qty,price,pricetax from  pur_d_apply_detail where {#condition#} order by Id]]>
+
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>
+				
+				
+				<update refreshparentonsave="report1|true">
+				    	update pur_d_apply_detail (price=@{price},pricetax=@{pricetax}) where Id=@{Id};
+				    	update pur_b_item set lastprice=@{price},lastpricetax=@{pricetax},taxrate=(@{pricetax}/@{price}) where Id=@{itemid};
+				</update>
+
+				<delete>
+				        delete from pur_d_apply_detail where Id=@{Id};
+				</delete>	
+			</sql>
+			<format>
+				   	<value>
+					rrequest.getRequest().setAttribute("Id",Rid);//存放request，以便显示标题时能取到
+		
+					</value>
+			</format> 
+
+		<footer><![CDATA[<font color='#ff0000'>说明：</font><font color='#0000ff'>先检查并录入正确价格,然后点击保存按钮,核对价格无误后,点击审核按钮</font>]]></footer>	
+		</report>
+	
+ 		</vpanel> 
+ 		
+ 		<vpanel id="common_vpanel2" align="center" width="1000px" parenttitle="已审核的采购申请" >
+		<report id="title1" extends="title.report1"></report>
+ 		<report id="report3"  pagesize="8" type="editablelist" title="已审核的采购申请单"  dataexport="richexcel" >
+			<display>
+				<col column="Id" label="编号" clickorderby="true" ></col>
+				<col column="filldate" label="填表日期"  datatype="date{yyyy-MM-dd}" ></col>
+				<col column="PARAM_VALUE" label="部门" clickorderby="true" >	</col>
+				<col column="amount" label="金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="amounttax" label="含税金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="tag" label="状态"  displaytype="hidden"/>
+				<col column="memo" label="备注"  ></col>
+				<col column="apprdate1" label="价格审核日期" ></col>
+			
+			</display>
+			<sql>
+				<select>
+					<value>
+					<![CDATA[select Id,filldate,b.PARAM_VALUE,c.amount,c.amounttax,tag,memo,apprdate1,apprdate2 from pur_d_apply a left join sys_c_set_parm b on a.deptno=b.SEQ and b.PARAM_TYPE='dept' left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax  from pur_d_apply_detail group by Rid) c on a.Id=c.Rid where ({#condition#} or a.tag='1') order by Id]]>
+					</value>			
+					<condition name="searchId" label="申请单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+		</report>
+		
+
+		 
+   		<report id="report4" pagesize="-1" type="editablelist2" title="已审核的采购申请单:request{Id}的明细单" depends="report3" dependsparams="txtId2=@{Id}" dataexport="richexcel" >
+			<display>
+					<col column="{sequence:1}" label="序号"  />
+					<col column="Id" displaytype="hidden"  />
+					<col column="Rid" label="采购单号" clickorderby="true" >
+					</col>
+					<col column="itemid" label="物料号" clickorderby="true" >
+ 						<inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})">
+						      <typeprompt count="15">
+							       <promptcol label="Id" title="物料号" matchmode="anywhere"></promptcol>
+							       <promptcol label="Name" title="中文名"></promptcol>
+							       <datasource>        
+							       <option dataset="@{select Id,Name from pur_b_item where {#matchcondition#}}"></option>       
+							       </datasource>
+					         </typeprompt>
+					     <autocomplete columns="Name;price" colvaluecondition="Id like '%#itemid#%'" dataset="SELECT Id itemid,Name,lastprice price FROM pur_b_item where  {#condition#} order by Id"></autocomplete>
+					     </inputbox> 
+					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>					
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+					<col column="qty" label="数量" clickorderby="true" />
+
+			
+			</display>
+			
+			
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,itemid,Name,unit,qty,price,pricetax from  pur_d_apply_detail where {#condition#} order by Id]]>
+
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>
+				
+
+			</sql>
+			
+			<format>
+				   	<value>
+					rrequest.getRequest().setAttribute("Id",Rid);//存放request，以便显示标题时能取到
+					</value>
+			</format> 
+
+			
+		</report>
+	
+ 		</vpanel>
+ 		</tabpanel>
+	</page>
+
+<!-- Ver1.0	2014-06-19 10:23 -->	
+<!-- pur_approve2 是采购申请单的二级审批   -->	
+
+<page id="pur_approve2" js="/webresources/script/validate.js" >
+<header>${top.header}</header>
+	
+	 <tabpanel id="tp1"  titlealign="center" margin="10px" titlestyle="2">  <!-- 页签框架,2个页签 -->
+	 
+	 	<vpanel id="common_vpanel1" align="center" width="1000px" parenttitle="待审核的采购申请" > 
+	 		<report id="title" extends="title.report1"></report>	<!-- 位置指示器 -->
+	 		
+	 		<report id="report1"  type="editablelist2" title="待审核的采购申请单"  pagesize="5" dataexport="richexcel" >
+	 		<display>
+				<col column="Id" label="编号" clickorderby="true" ></col>
+				<col column="filldate" label="填表日期"  datatype="date{yyyy-MM-dd}" clickorderby="true" ></col>
+				<col column="PARAM_VALUE" label="部门" clickorderby="true" >	</col>
+				<col column="amount" label="金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="amounttax" label="含税金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="tag" label="状态"  displaytype="hidden"/>
+				<col column="memo" label="备注"  ></col>
+				<col column="apprdate1" label="价格审核日期" displaytype="hidden"></col>
+			
+			</display>
+	 		<sql>
+				<select>
+					<value>
+					<![CDATA[select Id,filldate,b.PARAM_VALUE,c.amount,c.amounttax,tag,memo,apprdate1,apprdate2 from pur_d_apply a left join sys_c_set_parm b on a.deptno=b.SEQ and b.PARAM_TYPE='dept' left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax  from pur_d_apply_detail group by Rid) c on a.Id=c.Rid where ({#condition#} or a.tag='1') order by Id]]>
+					</value>			
+					<condition name="searchId" label="申请单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+
+			<buttons>
+				<button name="button1" extends="${wabacus.button.default}" position="title" label="同意" class="com.wabacus.system.buttons.ServerSQLActionButton" confirmessage="确认通过审核?" autoreportdata="true" successprompt="审核成功" failedprompt="审核失败" > 
+				    <params>
+						     <param name="now" value="now{}" datatype="timestamp{yyyy-MM-dd HH:mm:ss}"></param>
+					</params>
+					<value>
+					<![CDATA[
+				    	update pur_d_apply (tag="2",apprdate2=#{now}) where Id=@{Id};
+					]]>
+					</value>				    
+				</button> 
+				<button name="button2" extends="${wabacus.button.default}" position="title" label="否决" class="com.wabacus.system.buttons.ServerSQLActionButton" confirmessage="确认否决?" autoreportdata="true" successprompt="否决成功" failedprompt="审核失败" > 
+				    <params>
+						     <param name="now" value="now{}" datatype="timestamp{yyyy-MM-dd HH:mm:ss}"></param>
+					</params>
+					<value>
+					<![CDATA[
+				    	update pur_d_apply (tag="9",apprdate2=#{now}) where Id=@{Id};
+					]]>
+					</value>				    
+				</button> 
+			 </buttons>
+	 		</report>
+	 		
+	 		<report id="report2"  type="editablelist2" depends="report1" dependsparams="txtId2=@{Id}" dataexport="richexcel" >
+	 		<display>
+					<col column="{sequence:1}" label="序号"  />
+					<col column="Id" displaytype="hidden"  />
+					<col column="Rid" label="采购单号" >
+					</col>
+					<col column="itemid" label="物料号" clickorderby="true" >
+ 						<inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})">
+						      <typeprompt count="15">
+							       <promptcol label="Id" title="物料号" matchmode="anywhere"></promptcol>
+							       <promptcol label="Name" title="中文名"></promptcol>
+							       <datasource>        
+							       <option dataset="@{select Id,Name from pur_b_item where {#matchcondition#}}"></option>       
+							       </datasource>
+					         </typeprompt>
+					     <autocomplete columns="Name;price" colvaluecondition="Id like '%#itemid#%'" dataset="SELECT Id itemid,Name,lastprice price FROM pur_b_item where  {#condition#} order by Id"></autocomplete>
+					     </inputbox> 
+					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>
+					
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+					<col column="qty" label="数量" clickorderby="true" />
+					<col column="isok" label="问题项" clickorderby="true" >
+						<inputbox type="radiobox">
+							<option value="1" label="是"></option> 
+							<option value="0" label="否"></option> 
+						</inputbox>
+					</col>
+					
+			</display>
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,itemid,Name,unit,qty,price,pricetax,isok from  pur_d_apply_detail where {#condition#} order by Id]]>
+
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>
+				<update refreshparentonsave="report1|true">
+				    	update pur_d_apply_detail (isok=@{isok}) where Id=@{Id};
+				</update>
+			</sql>
+	 		</report>
+	 	</vpanel>
+	 	
+	 	<vpanel id="common_vpanel2" align="center" width="1000px" parenttitle="已审核的采购申请" >
+		<report id="title1" extends="title.report1"></report> //位置指示器
+ 		<report id="report31" extends="pur_approve1.report3" >
+ 		<sql>
+				<select>
+					<value>
+					<![CDATA[select Id,filldate,b.PARAM_VALUE,c.amount,c.amounttax,tag,memo,apprdate1,apprdate2 from pur_d_apply a left join sys_c_set_parm b on a.deptno=b.SEQ and b.PARAM_TYPE='dept' left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax  from pur_d_apply_detail group by Rid) c on a.Id=c.Rid where ({#condition#} or a.tag='2') order by Id]]>
+					</value>			
+					<condition name="searchId" label="申请单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+		</report>
+ 		<report id="report41" extends="pur_approve1.report4" depends="report31" dependsparams="txtId2=@{Id}"></report>
+ 		</vpanel>
+	 </tabpanel>
+</page>
+	
+</applications>
+			   

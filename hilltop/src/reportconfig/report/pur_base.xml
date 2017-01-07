@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<applications xmlns="http://www.wabacus.com"
+			   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			   xsi:schemaLocation="http://www.wabacus.com ../xsd/wabacus.applications.xsd">
+			   
+<!-- 	copyright©2014	WuBing  All rights reserved.-->			   
+
+<!-- 	ver1.0	2014-5-28 15:16
+		本xml实现采购基础数据的CRUD{增加(Create)、查询(Retrieve)（重新得到数据）、更新(Update)和删除(Delete)}功能
+		基础数据表有2个
+		bp是供应商列表
+		item是物料列表
+-->			   
+			   
+			   
+	<page id="pur_bp">
+		<header>${top.header}</header>
+		<vpanel id="common_vpanel" align="center" width="1000px">
+		<report id="title" extends="title.report1"></report>
+		<report id="report1" type="editablelist2" title="业务伙伴列表" dataexport="richexcel">
+			<display>
+				<col column="Id" label="供应商编码" clickorderby="true" />
+				<col column="Rid" label="关联编号" clickorderby="true" />
+				<col column="Name" label="名称" clickorderby="true" />
+				<col column="address1" label="地址1" clickorderby="true" />
+				<col column="address2" label="地址2" clickorderby="true" />
+				<col column="contact" label="联系人" clickorderby="true" />
+				<col column="cellphone" label="手机" clickorderby="true" />
+				<col column="telephone" label="座机" clickorderby="true" />
+				<col column="email" label="电子邮件"  />
+				<col column="group1" label="组别1" clickorderby="true" />
+				<col column="group2" label="组别2" clickorderby="true" />
+				<col column="group3" label="组别3" clickorderby="true" />
+				<col column="zip" label="邮政编码"  />
+				<col column="amount" label="账户余额" clickorderby="true" />
+				<col column="memo" label="备注"  />
+			</display>
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,Name,address1,address2,contact,cellphone,telephone,email,group1,group2,group3,zip,amount,memo from  pur_b_bp where {#condition#} order by Id ]]>
+					</value>
+
+					<condition name="searchId" label="供应商编码">
+						<value>
+							<![CDATA[(Id = #data# )]]>
+						</value>
+					</condition>
+										<condition name="searchName" label="名称">
+						<value>
+							<![CDATA[(Name like  '%#data#%' )]]>
+						</value>
+					</condition>
+
+				</select>
+				<insert>
+					insert into pur_b_bp (@{Id},@{Rid},@{Name},@{address1},@{address2},@{contact},@{cellphone},@{telephone},@{email},@{group1},@{group2},@{group3},@{zip},@{amount},@{memo});
+				</insert>
+				<update>
+					update pur_b_bp (Id=@{Id},Rid=@{Rid},Name=@{Name},address1=@{address1},address2=@{address2},contact=@{contact},cellphone=@{cellphone},telephone=@{telephone},email=@{email},group1=@{group1},group2=@{group2},group3=@{group3},zip=@{zip},amount=@{amount},memo=@{memo}
+					where Id=@{Id};
+				</update>
+				 <delete>
+					delete from pur_b_bp where Id=@{Id};
+			  </delete>
+			</sql>
+
+		</report>
+		</vpanel>
+	</page>
+
+<!-- 下面是物料清单的页面   -->	
+     	
+	<page id="pur_item">
+		<header>${top.header}</header>
+		<vpanel id="common_vpanel" align="center" width="1000px">
+		<report id="report1" type="editablelist2" title="物料清单" dataexport="richexcel">
+			<display>
+				<col column="Id" label="物料编码" clickorderby="true" />
+				<col column="Name" label="物料名称" clickorderby="true" />
+				<col column="class1" label="大类" clickorderby="true" />
+				<col column="class2" label="小类" clickorderby="true" />
+				<col column="descrition" label="描述" clickorderby="true" />
+				<col column="unit" label="单位" clickorderby="true" />
+				<col column="spec" label="规格" clickorderby="true" />
+				<col column="lastprice" label="上次采购价" clickorderby="true" >
+				</col>
+				<col column="taxrate" label="税率" clickorderby="true" />
+
+				<col column="lastpricetax" label="含税上次采购价" clickorderby="true">
+				</col>
+				
+				<col column="aveprice" label="平均价格" clickorderby="true" />
+
+				<col column="avepricetax" label="含税平均价格" clickorderby="true" />
+				<col column="stock" label="库存数" clickorderby="true" />
+				<col column="valuestock" label="库存可用数" clickorderby="true" />
+				<col column="stockno" label="仓库" clickorderby="true" />
+				<col column="stockzone1" label="仓库区位1" clickorderby="true" />
+				<col column="stockzone2" label="仓库区位2" clickorderby="true" />
+				<col column="memo" label="备注"  />
+				
+			</display>
+			<sql>
+				<select>
+				  	<value>
+						<![CDATA[select Id,Name,class1,class2,descrition,unit,spec,lastprice,lastpricetax,taxrate,aveprice,avepricetax,memo,stock,valuestock,stockno,stockzone1,stockzone2 from  pur_b_item where {#condition#} order by Id]]>
+					</value>
+				<condition name="searchId" label="物料编码">
+					<value>
+						<![CDATA[(Id like  '%#data#%' )]]>
+					</value>
+				</condition>
+				<condition name="searchName" label="物料名称">
+					<value>
+						<![CDATA[(Name like  '%#data#%' )]]>
+					</value>
+				</condition>
+				</select>
+				
+				<insert>
+   					insert into pur_b_item (@{Id},@{Name},@{class1},@{class2},@{descrition},@{unit},@{spec},@{memo},stock=0,valuestock=0,@{stockno},@{stockzone1},@{stockzone2});
+   					
+				</insert>
+				<update>
+				    update pur_b_item (Id=@{Id},Name=@{Name},class1=@{class1},class2=@{class2},descrition=@{descrition},unit=@{unit},spec=@{spec},memo=@{memo},stockno=@{stockno},stockzone1=@{stockzone1},stockzone2=@{stockzone2}) where Id=@{Id};
+				</update>
+
+				<delete>
+				    delete from pur_b_item where Id=@{Id};
+				</delete>
+		
+			</sql>
+		</report>
+		</vpanel>
+	</page>
+	
+	<page id="p_test" js="/webresources/script/validate.js" >
+		<header>${top.header}</header>
+		<vpanel id="common_vpanel" align="center" width="1000px">
+		<report id="title" extends="title.report1"></report>	 		
+	 		
+	 		<report id="report4"  type="editablelist2" title="采购申请单:request{Id}明细单"  >
+			<display>
+					<col column="Id" label="编号" clickorderby="true" />
+					<col column="Rid" label="采购单号" clickorderby="true" />
+					<col column="itemid" label="物料号" clickorderby="true" valuestyleproperty="style='mso-number-format:\@'" >
+ 						<inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})">
+ 						      <typeprompt count="15">
+							       <promptcol label="Id" title="物料号" matchmode="anywhere"></promptcol>
+							       <promptcol label="Name" title="中文名"></promptcol>
+							       <datasource>        
+							       <option dataset="@{select Id,Name from pur_b_item where {#matchcondition#}}"></option>       
+							       </datasource>
+					         </typeprompt> 
+					     <autocomplete columns="Name;price" colvaluecondition="id = '#itemid#'" dataset="select Id itemid,Name,lastprice price from pur_b_item where {#condition#}"></autocomplete>
+					     </inputbox> 
+					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+					
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="qty" label="数量" clickorderby="true" />
+
+			
+			</display>
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,itemid,Name,qty,price from  pur_d_apply_detail order by Id]]>
+
+					</value>			
+ <!-- 					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  -->
+				</select>
+				
+				<insert>
+<!-- 			  	    <params>
+			  		     <param name="master_Id" value="url{txtId2}"></param> 
+			  	    </params>				
+   					    insert into pur_d_apply_detail (Rid=#{master_Id},@{itemid},@{Name},@{qty},@{price}); -->
+   					    insert into pur_d_apply_detail (@{Rid},@{itemid},@{Name},@{qty},@{price});
+   					    
+   					    
+				</insert>
+				
+				<update>
+				    	update pur_d_apply_detail (Rid=@{Rid},itemid=@{itemid},Name=@{Name},qty=@{qty},price=@{price}) where Id=@{Id};
+				</update>
+
+				<delete>
+				        delete from pur_d_apply_detail where Id=@{Id};
+
+				</delete>	
+<!-- 				<format>
+				   	<value>
+					rrequest.getRequest().setAttribute("Id",Id);//存放request，以便显示标题时能取到
+					</value>
+			  	</format> 			
+ -->			</sql>
+		</report>
+	
+	
+	
+	</vpanel>
+	</page>	
+
+</applications>

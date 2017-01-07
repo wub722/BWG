@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<applications xmlns="http://www.wabacus.com"
+			   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			   xsi:schemaLocation="http://www.wabacus.com ../xsd/wabacus.applications.xsd">
+
+<!-- 	copyright©2014	WuBing  All rights reserved.-->
+
+<!-- 	ver1.0		2014/06/22 8:30 			 	
+	实现采购订单功能
+	流程:从二级审批后的申请单里,合并相同的,检查库存数量,决定购买数量,选择供应商,录入采购订单,然后库房依据采购订单入库,依据采购申请单出库.	
+ 	表pur_d_apply里的tag字段控制
+	状态 
+    0 初始待批
+	1 一级审批通过 	***采购审核价格***
+	2 二级审批通过	***领导审核***
+	5 采购
+	6 入库
+	7 出库
+	9 作废
+	
+	表pur_d_order里的tag字段控制
+	0 初始
+	6 入库
+	7 出库
+	9作废
+
+ -->
+
+
+<!-- pur_order 是采购订单  主从报表 -->	
+	<page id="pur_order" js="/webresources/script/validate.js" >
+		<header>${top.header}</header>
+	
+<!-- 	 <tabpanel id="tp1"  titlealign="center" margin="10px" titlestyle="2">  -->
+	 
+	 <vpanel id="common_vpanel1" align="center" width="1000px" parenttitle="采购订单" > 
+	 <report id="title" extends="title.report1"></report>
+	 
+	 <report id="report2"  type="editablelist2"  title="待采购物料" rowselect="multiple-checkbox|true" >
+			<display>
+					<col column="itemid" label="物料号" >
+ 					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+ 					<col column="tqty" label="申请数" clickorderby="true" >
+					</col>
+					<col column="valuestock" label="库存可用数" clickorderby="true" >
+					</col> 
+					<col column="qty" label="采购数" clickorderby="true" >
+					</col>
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>
+					
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+			</display>
+<!-- 下面的两脚本有不同,1 从审批后的申请单中最靠后的申请单上取价格 2从物料单里取价格(要求价格审核时,下采购订单时同步更新物料单的价格
+select a.itemid, a.Name,a.tqty tqty,b.valuestock valuestock,a.tqty-b.valuestock qty,b.unit,a.price,a.pricetax from (select itemid,Name,sum(qty) tqty,price,pricetax from (select * from pur_d_apply_detail  where Rid in (select Id from pur_d_apply where tag="2") order by Rid desc) z group by itemid) a left join pur_b_item b on a.itemid=b.Id;
+select a.itemid, b.Name,a.tqty tqty,b.valuestock valuestock,(a.tqty-b.valuestock) qty,b.unit,b.lastprice,b.lastpricetax from (select itemid,sum(qty) tqty from pur_d_apply_detail where Rid in (select Id from pur_d_apply where tag="2") group by itemid) a left join pur_b_item b on a.itemid=b.Id; 
+
+-->
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select a.itemid itemid,b.Name Name,a.tqty tqty,b.valuestock valuestock,(a.tqty-b.valuestock) qty,b.unit unit,b.lastprice price,b.lastpricetax pricetax from (select itemid,sum(qty) tqty from pur_d_apply_detail z inner join pur_d_apply v on z.Rid=v.id where z.isok<>5 and v.tag='2' group by z.itemid) a left join pur_b_item b on a.itemid=b.Id where a.tqty-b.valuestock>0]]>
+					</value>
+				</select>
+		
+			</sql>
+<!-- 该按钮按物料号合并的采购申请导入到采购订单中,
+			插入采购订单的明细表pur_d_order_detail
+			更新采购订单的金额总计和含税金额总计
+			更新采购申请明细表里的isok字段为5,表示已采购,Ridpdo里记录了采购订单号
+			更新采购申请表里的tag字段为5,表示已采购
+			更新pur_b_item表里的valuestock,库存可用数.
+			如果valuestock值小于0,则置为0
+ -->
+			<buttons>
+				<button name="button1" extends="${wabacus.button2.default}" position="title" label="导入订单" class="com.wabacus.system.buttons.ServerSQLActionButton" confirmessage="确认导入?" autoreportdata="true" successprompt="导入成功" failedprompt="导入失败" >
+
+					<params>
+ 			  		     <param name="master_Id" value="foreign{SELECT max(Id) from pur_d_order}"></param> 
+			  	    </params>
+					<value>
+					<![CDATA[
+						insert into pur_d_order_detail(Rid=#{master_Id},@{itemid},@{Name},@{unit},@{qty},@{price},@{pricetax},tag=0);
+						update pur_d_order a left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax from pur_d_order_detail group by Rid) b on a.Id=b.Rid set a.amount=b.amount,a.amounttax=b.amounttax;
+				    	update pur_d_apply_detail a inner join pur_d_apply b on a.Rid=b.Id set a.isok='5',a.Ridpdo=#{master_Id} where b.tag="2" and a.itemid=@{itemid};
+				    	update pur_d_apply (tag="5") where Id in (select a.Rid from (SELECT Rid, count(Rid) c FROM pur_d_apply_detail where isok=5 GROUP by Rid) a left join (SELECT Rid, count(Rid) c FROM hilltop.pur_d_apply_detail GROUP by Rid) b on a.Rid=b.Rid where a.c=b.c);
+				    	update pur_b_item set valuestock=valuestock-@{qty} where Id=@{itemid};
+				    	update pur_b_item set valuestock=0 where valuestock<0;
+					]]>
+					</value>				    
+				</button> 
+			 </buttons>
+		</report>
+	 
+ 		<report id="report1"  type="editablelist2" title="采购订单"  pagesize="5" dataexport="richexcel" >
+			<display>
+				<col column="Id" label="编号" clickorderby="true" ></col>
+				<col column="pbp_Id" label="供应商" clickorderby="true" >
+				 	<inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})">
+						      <typeprompt count="15">
+							       <promptcol label="Id" title="供应商编码" matchmode="anywhere"></promptcol>
+							       <promptcol label="Name" title="名称"></promptcol>
+							       <datasource>        
+							       <option dataset="@{select Id,Name from pur_b_bp where {#matchcondition#}}"></option>       
+							       </datasource>
+					         </typeprompt>
+					</inputbox>
+				</col>
+				<col column="filldate" label="采购日期"  datatype="date{yyyy-MM-dd}" clickorderby="true" >
+ 					    <inputbox type="datepicker" jsvalidate="isDate(#data#格式不对，必须为yyyy-MM-dd格式)"> 
+					    </inputbox>
+				</col>
+				<col column="arridate" label="送货日期"  datatype="date{yyyy-MM-dd}" clickorderby="true" >
+ 					    <inputbox type="datepicker" jsvalidate="isDate(#data#格式不对，必须为yyyy-MM-dd格式)"> 
+					    </inputbox>
+				</col>
+				<col column="amount" label="金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="amounttax" label="含税金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="User_Id" label="用户"  displaytype="hidden"/>
+				<col column="tag" label="状态"  displaytype="hidden"/>
+			
+			</display>
+			<sql>
+				<select>
+					<value>
+					<![CDATA[select a.Id,b.Name pbp_Id,a.filldate,a.arridate,a.amount,a.amounttax,a.User_Id,a.tag from pur_d_order a left join pur_b_bp b on a.pbp_Id=b.Id  where ({#condition#} or a.tag='0') order by Id]]>
+					</value>			
+					<condition name="searchId" label="采购订单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+				<insert>
+		  		 	insert into pur_d_order(@{pbp_Id},@{filldate},@{arridate},amount="0.00",amounttax="0.00",tag="0",@{User_Id});
+			  	</insert>
+			  	<update>
+			     	update pur_d_order(pbp_Id=@{pbp_Id},filldate=@{filldate},arridate=@{arridate},amount=@{amount},amounttax=@{amounttax},tag=@{tag},User_Id=@{User_Id}) where Id=@{Id};
+			     
+			  	</update>
+			  	<delete>
+				        delete from pur_d_order where Id=@{Id};
+				</delete>
+			</sql>
+		</report>
+		
+
+ 		 
+   		<report id="report3"  type="editablelist2" pagesize="-1" title="采购订单:request{Id}的明细单" depends="report1" dependsparams="txtId2=@{Id}" dataexport="richexcel" >
+			<display>
+					<col column="{sequence:1}" label="序号"  />
+					<col column="Id" displaytype="hidden"  />
+					<col column="Rid" label="采购订单号"  />
+					<col column="itemid" label="物料号" >
+ 					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+<!-- 					<col column="tqty" label="申请数" clickorderby="true" >
+					</col>
+					<col column="valuestock" label="库存可用数" clickorderby="true" >
+					</col> -->
+					<col column="qty" label="采购数" clickorderby="true" >
+					</col>
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>
+					
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+			</display>
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,itemid,Name,unit,qty,price,pricetax from  pur_d_order_detail where {#condition#} order by Id]]>
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>
+		
+				<update refreshparentonsave="report1|true" >
+				    	update pur_d_order_detail (qty=@{qty},price=@{price},pricetax=@{pricetax}) where Id=@{Id};
+				    	update pur_b_item set lastprice=@{price},lastpricetax=@{pricetax},taxrate=(@{pricetax}/@{price}) where Id=@{itemid};
+				    	
+				</update>
+<!-- delete操作
+除了删除该条记录
+还要更新采购订单pur_d_order里的总金额
+更新采购申请明细单里的isok=0 未采购状态,Ridpdo=0;
+更新采购申请单的状态tag=2为已二级审核
+更新pur_b_item里的可用数vluestock=valuestock+qty
+ -->
+				<delete refreshparentonsave="report1|true" refreshPageDisplay="'pur_order',null">
+				        delete from pur_d_order_detail where Id=@{Id};
+				        update pur_d_order a left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax from pur_d_order_detail group by Rid) b on a.Id=b.Rid set a.amount=b.amount,a.amounttax=b.amounttax;
+				        update pur_d_apply_detail a inner join pur_d_apply b on a.Rid=b.Id set a.isok=0,a.Ridpdo=0 where (b.tag="2" or b.tag="5") and a.itemid=@{itemid};
+				        update pur_d_apply (tag="2") where Id in (select a.Rid from (SELECT Rid, count(Rid) c FROM pur_d_apply_detail where isok=5 GROUP by Rid) a left join (SELECT Rid, count(Rid) c FROM hilltop.pur_d_apply_detail GROUP by Rid) b on a.Rid=b.Rid where b.c>a.c);
+				        update pur_b_item set valuestock=valuestock+@{qty} where Id=@{itemid};
+				</delete>	
+			</sql>
+ 			<format>
+				   	<value>
+					rrequest.getRequest().setAttribute("Id",Rid);<!-- 存放request，以便显示标题时能取到 -->
+					</value>
+			</format>  
+
+		<footer><![CDATA[<font color='#ff0000'>说明：</font><font color='#0000ff'>先选择供应商,然后选择待采购的物料,导入到明细单中,并检查最终价格,然后点击保存按钮,</font>]]></footer>	
+		</report>
+ 		</vpanel>
+ 		<!-- </tabpanel> -->
+	</page>
+</applications>
+			   

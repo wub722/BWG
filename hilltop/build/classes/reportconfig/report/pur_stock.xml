@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<applications xmlns="http://www.wabacus.com"
+			   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			   xsi:schemaLocation="http://www.wabacus.com ../xsd/wabacus.applications.xsd">
+
+<!-- 	copyright©2014	WuBing  All rights reserved.-->
+
+<!-- 	ver1.0		2014/06/25 8:04 			 	
+	实现库存管理功能,包括按采购订单入库和按采购申请出库的功能
+	流程:查询状态为采购(pur_d_order里tag='5')的采购订单,依据采购订单入库,依据采购申请单出库.
+	出入库会发生金额的变动.
+	
+		
+ 	表pur_d_apply里的tag字段控制
+	状态 
+    0 初始待批
+	1 一级审批通过 	***采购审核价格***
+	2 二级审批通过	***领导审核***
+	5 采购
+	6 已入库
+	7 待出库
+	8 已出库
+	9 作废
+	
+	表pur_d_order里的tag字段控制
+	0 初始
+	5 采购
+	6 已入库
+	7 待出库
+	8 已出库
+	9作废
+	
+	表 pur_stockin里的tag字段控制
+	0 初始入库
+	1 已开票  意味着付钱了,为计算应收应付
+
+ -->
+
+
+<!-- pur_stockin 是入库管理  主从报表 
+ -->	
+	<page id="pur_stockin" js="/webresources/script/validate.js" >
+		<header>${top.header}</header>
+	
+ 	 <tabpanel id="tp1"  titlealign="center" margin="10px" titlestyle="2"> 
+	 
+	 <vpanel id="common_vpanel1" align="center" width="1000px" parenttitle="采购入库" > 
+	 <report id="title" extends="title.report1"></report>
+ 		<report id="report1"  type="editablelist2" title="待入库的采购订单"  pagesize="5" dataexport="richexcel" >
+			<display>
+				<col column="Id" label="编号" clickorderby="true" ></col>
+				<col column="pbp_Id" label="供应商" clickorderby="true" >
+				 	<inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})">
+						      <typeprompt count="15">
+							       <promptcol label="Id" title="供应商编码" matchmode="anywhere"></promptcol>
+							       <promptcol label="Name" title="名称"></promptcol>
+							       <datasource>        
+							       <option dataset="@{select Id,Name from pur_b_bp where {#matchcondition#}}"></option>       
+							       </datasource>
+					         </typeprompt>
+					</inputbox>
+				</col>
+				<col column="filldate" label="采购日期"  datatype="date{yyyy-MM-dd}" clickorderby="true" >
+ 					    <inputbox type="datepicker" jsvalidate="isDate(#data#格式不对，必须为yyyy-MM-dd格式)"> 
+					    </inputbox>
+				</col>
+				<col column="arridate" label="送货日期"  datatype="date{yyyy-MM-dd}" clickorderby="true" >
+ 					    <inputbox type="datepicker" jsvalidate="isDate(#data#格式不对，必须为yyyy-MM-dd格式)"> 
+					    </inputbox>
+				</col>
+				<col column="amount" label="金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="amounttax" label="含税金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="User_Id" label="用户"  displaytype="hidden"/>
+				<col column="tag" label="状态"  displaytype="hidden"/>
+			
+			</display>
+			<sql>
+				<select>
+					<value>
+					<![CDATA[select a.Id,b.Name pbp_Id,a.filldate,a.arridate,a.amount,a.amounttax,a.User_Id,a.tag from pur_d_order a left join pur_b_bp b on a.pbp_Id=b.Id  where ({#condition#} or a.tag='0') order by Id]]>
+					</value>			
+					<condition name="searchId" label="采购订单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+		</report>
+		
+ 		 
+   		<report id="report2"  rowselect="multiple-checkbox|true" type="editablelist2"  title="待入库的采购订单:request{Id}的明细单" depends="report1" dependsparams="txtId2=@{Id}" dataexport="richexcel" >
+			<display>
+					<col column="{sequence:1}" label="序号"  />
+					<col column="Id" displaytype="hidden"  />
+					<col column="Rid" label="采购订单号"  />
+					<col column="itemid" label="物料号" >
+ 					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>
+					
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+<!-- 					<col column="qtyin" label="采购数" clickorderby="true" >
+					</col> -->
+					<col column="qty" label="入库数" clickorderby="true" >
+					</col>
+			</display>
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,itemid,Name,unit,qty,price,pricetax from  pur_d_order_detail where {#condition#} order by Id]]>
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>
+
+			</sql>
+<!-- 该按钮处理采购订单明细入库  
+     1 插入pur_d_stockin表
+     2 更新采购订单明细表的tag字段,设置为已入库
+     3 更新采购订单表的tag字段,设置为已入库
+     4 更新pur_b_item表里的stock字段,库存数增加.valuestock字段,可用库存数增加.计算avrprice和avepricetax
+     aveprice=(aveprice*stock+@{qty}*@{price})/(stock+@{qty})
+     5 更新采购申请单的tag=6字段,已入库
+     6 更新采购申请明细单的isok=6,已入库
+-->		
+			<buttons>
+				<button name="button1" extends="${wabacus.button2.default}" position="title" label="入库" class="com.wabacus.system.buttons.ServerSQLActionButton" confirmessage="确认入库?" autoreportdata="true" successprompt="入库成功" failedprompt="入库失败" > 
+ 					<params>
+ 			  		     <param name="master_Id" value="url{txtId2}"></param> 
+						 <param name="now" value="now{}" datatype="timestamp{yyyy-MM-dd HH:mm:ss}"></param>
+			  	    </params>
+					<value>
+					<![CDATA[
+						insert into pur_d_stockin (@{Rid},@{itemid},@{Name},@{qty},@{unit},@{price},@{pricetax},filldate=#{now},tag=0);
+				    	update pur_d_order_detail (tag=6) where Rid=#{master_Id};
+				    	update pur_d_order (tag=6) where Id=#{master_Id};
+				    	update pur_b_item set aveprice=(aveprice*stock+@{qty}*@{price})/(stock+@{qty}),avepricetax=(avepricetax*stock+@{qty}*@{pricetax})/(stock+@{qty}),valuestock=valuestock+@{qty},stock=stock+@{qty} where Id=@{itemid};
+				    	update pur_d_apply_detail set isok=6 where Ridpdo=#{master_Id} and itemid=@{itemid};
+				   		update pur_d_apply set tag="6" where Id in (select a.Rid from (SELECT Rid, count(Rid) c FROM pur_d_apply_detail where isok=6 GROUP by Rid) a left join (SELECT Rid, count(Rid) c FROM pur_d_apply_detail GROUP by Rid) b on a.Rid=b.Rid where a.c=b.c);
+				   		
+					]]>
+					</value>			    
+				</button> 
+			 </buttons>
+ 			<format>
+				   	<value>
+					rrequest.getRequest().setAttribute("Id",Rid);<!-- 存放request，以便显示标题时能取到 -->
+					</value>
+			</format>
+
+		<footer><![CDATA[<font color='#ff0000'>说明：</font><font color='#0000ff'>先选择采购订单号,检查入库数量,然后点击保存按钮,</font>]]></footer>	
+		</report>
+ 		</vpanel>
+ 		
+ 		<!-- 第二个页签,显示已入库的物料信息 -->
+ 		<vpanel id="common_vpanel2" align="center" width="1000px" parenttitle="已入库的采购订单" >
+		<report id="title1" extends="title.report1"></report>
+ 		<report id="report3"  type="editablelist" title="入库明细表"  pagesize="10" dataexport="richexcel" >
+			<display>
+					<col column="Id" label="ID" clickorderby="true" />
+					<col column="Rid" label="采购订单号" clickorderby="true" />
+					<col column="itemid" label="物料号" clickorderby="true" >
+ 					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+					<col column="qty" label="入库数" clickorderby="true" >
+					</col>
+					<col column="filldate" label="填表日期" clickorderby="true"  ></col>
+					<col column="tag" label="状态"  displaytype="hidden"/>
+					<col column="memo" label="备注"  ></col>
+			</display>
+			<sql>
+				<select>
+					<value>
+					<![CDATA[select * from pur_d_stockin  where ({#condition#}) order by Id]]>
+					</value>			
+					<condition name="searchId" label="采购订单号">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+		</report>
+		</vpanel>
+ 		</tabpanel>
+	</page>
+
+<!-- pur_stockout 是出库管理  
+按采购申请单出库
+记录领用人和领用时间
+-->	
+<page id="pur_stockout" js="/webresources/script/validate.js" >
+	<header>${top.header}</header>
+	
+ 	<tabpanel id="tp1"  titlealign="center" margin="10px" titlestyle="2"> 
+	 
+		<vpanel id="common_vpanel1" align="center" width="1000px" parenttitle="采购出库" > 
+	 	<report id="title" extends="title.report1"></report>
+	 	
+	 	<!-- 第一张报表显示待出库的采购申请单
+	 		pur_d_apply里tag=6	
+	 	 -->
+ 		<report id="report1"  extends="pur_apply.report1" title="待出库的采购申请单"  pagesize="5" dataexport="richexcel" >
+			<sql>
+				<select>
+					<value>
+					<![CDATA[select Id,filldate,b.PARAM_VALUE,c.amount,c.amounttax,tag,memo from pur_d_apply a left join sys_c_set_parm b on a.deptno=b.SEQ and b.PARAM_TYPE='dept' left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax  from pur_d_apply_detail group by Rid) c on a.Id=c.Rid where ({#condition#} or a.tag='6' ) order by Id]]>
+					</value>			
+					<condition name="searchId" label="申请单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+		</report>
+		
+ 		<!-- report2 显示待出库的采购申请单的明细 -->
+   		<report id="report2"  rowselect="multiple-checkbox|true" extends="pur_apply.report3" title="待出库的采购申请单:request{Id}的明细单" depends="report1" dependsparams="txtId2=@{Id}" dataexport="richexcel"   >
+
+ 			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,Ridpdo,itemid,Name,unit,qty,price,pricetax from  pur_d_apply_detail where {#condition#} order by Id]]>
+
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>				
+			</sql>
+			
+<!-- 该按钮处理采购订单明细出库  
+     1 插入pur_d_stockout表
+     2 更新采购申请明细表的tag字段,设置为已入库
+     3 更新采购申请表的tag字段,设置为已入库
+     4 更新pur_b_item表里的stock字段,库存数增加.valuestock字段,可用库存数增加.计算avrprice和avepricetax
+     aveprice=(aveprice*stock+@{qty}*@{price})/(stock+@{qty})
+     5 更新采购申请单的tag=6字段,已入库
+     6 更新采购申请明细单的isok=6,已入库 
+-->		
+			<buttons>
+				<button name="button1" extends="${wabacus.button2.default}" position="title" label="出库" class="com.wabacus.system.buttons.ServerSQLActionButton" confirmessage="确认出库?" autoreportdata="true" successprompt="出库成功" failedprompt="出库失败" > 
+ 					<params>
+ 			  		     <param name="master_Id" value="url{txtId2}"></param> 
+						 <param name="now" value="now{}" datatype="timestamp{yyyy-MM-dd HH:mm:ss}"></param>
+			  	    </params>
+					<value>
+					<![CDATA[
+						insert into pur_d_stockout (@{Rid},@{Ridpdo},@{itemid},@{Name},@{qty},@{unit},@{price},@{pricetax},filldate=#{now},isok=0);
+				    	update pur_d_order_detail (tag=6) where Rid=#{master_Id};
+				    	update pur_d_order (tag=6) where Id=#{master_Id};
+				    	update pur_b_item set aveprice=(aveprice*stock+@{qty}*@{price})/(stock+@{qty}),avepricetax=(avepricetax*stock+@{qty}*@{pricetax})/(stock+@{qty}),valuestock=valuestock+@{qty},stock=stock+@{qty} where Id=@{itemid};
+				    	update pur_d_apply_detail set isok=6 where Ridpdo=#{master_Id} and itemid=@{itemid};
+				   		update pur_d_apply set tag="6" where Id in (select a.Rid from (SELECT Rid, count(Rid) c FROM pur_d_apply_detail where isok=6 GROUP by Rid) a left join (SELECT Rid, count(Rid) c FROM pur_d_apply_detail GROUP by Rid) b on a.Rid=b.Rid where a.c=b.c);
+				   		
+					]]>
+					</value>			    
+				</button> 
+			 </buttons>
+ 			<format>
+				   	<value>
+					rrequest.getRequest().setAttribute("Id",Rid);<!-- 存放request，以便显示标题时能取到 -->
+					</value>
+			</format>
+
+		<footer><![CDATA[<font color='#ff0000'>说明：</font><font color='#0000ff'>先选择采购申请号,检查出库数量,然后点击保存按钮,</font>]]></footer>	
+		</report>
+ 		</vpanel>
+ 		
+ 		<!-- 第二个页签,显示已出库的物料信息 -->
+ 		<vpanel id="common_vpanel2" align="center" width="1000px" parenttitle="已出库的采购申请单" >
+		<report id="title1" extends="title.report1"></report>
+ 		<report id="report3"  type="editablelist" title="出库明细表"  pagesize="10" dataexport="richexcel" >
+			<display>
+					<col column="Id" label="ID" clickorderby="true" />
+					<col column="Rid" label="采购订单号" clickorderby="true" />
+					<col column="itemid" label="物料号" clickorderby="true" >
+ 					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+					<col column="qty" label="出库数" clickorderby="true" >
+					</col>
+					<col column="filldate" label="填表日期" clickorderby="true"  ></col>
+					<col column="tag" label="状态"  displaytype="hidden"/>
+					<col column="memo" label="备注"  ></col>
+			</display>
+			<sql>
+				<select>
+					<value>
+					<![CDATA[select * from pur_d_stockout  where ({#condition#}) order by Id]]>
+					</value>			
+					<condition name="searchId" label="采购订单号">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+		</report>
+		</vpanel>
+ 		</tabpanel>
+ 		
+ 		
+ 		
+ 		
+	</page>
+	
+	
+	
+</applications>
+			   

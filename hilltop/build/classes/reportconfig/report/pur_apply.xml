@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<applications xmlns="http://www.wabacus.com"
+			   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			   xsi:schemaLocation="http://www.wabacus.com ../xsd/wabacus.applications.xsd">
+			   
+<!-- 	copyright©2014	WuBing  All rights reserved.-->			   
+
+<!-- 	ver1.0	2014/6/3 13:00
+		实现采购申请的功能.
+		各部门使用此功能
+		包括两个页签,待审核采购申请,已审核采购申请.
+		采购申请单采用 主从报表
+-->	
+	<page id="pur_apply" js="/webresources/script/validate.js" >
+		<header>${top.header}</header>
+		
+		<tabpanel id="tp1"  titlealign="center" margin="10px" titlestyle="2">//页签框架
+
+
+ 	
+<!-- 下面是第一个页签 可领用的采购申请单
+ 		共有2个report
+		report4 采购单列表
+		report5 单条采购单的明细记录
+-->		
+ 		<vpanel id="common_vpanel1" align="center" width="1000px" parenttitle="可领用的采购申请" >
+		<report id="title4" extends="title.report1"></report>
+ 		<report id="report61"  extends="pur_apply.report1"  title="可领用的采购申请单"  >
+			<sql>
+				<select>
+					<value>
+					<![CDATA[select Id,filldate,b.PARAM_VALUE,c.amount,c.amounttax,tag,memo from pur_d_apply a left join sys_c_set_parm b on a.deptno=b.SEQ and b.PARAM_TYPE='dept' left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax  from pur_d_apply_detail group by Rid) c on a.Id=c.Rid where ({#condition#} or a.tag='6' ) order by Id]]>
+					</value>			
+					<condition name="searchId" label="申请单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+		</report>
+		
+
+		 
+   		<report id="report71"  extends="pur_apply.report3" title="采购申请单:request{Id}的明细单" depends="report61" dependsparams="txtId2=@{Id}" dataexport="richexcel" >
+ 			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,Ridpdo,itemid,Name,unit,qty,price,pricetax from  pur_d_apply_detail where {#condition#} order by Id]]>
+
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>				
+			</sql>
+			
+			<format>
+				   	<value>
+					rrequest.getRequest().setAttribute("Id",Rid);<!-- //存放request，以便显示标题时能取到 -->
+					</value>
+			</format> 
+
+		</report>
+ 		</vpanel>
+
+
+
+<!-- 第二个页签 新增采购申请单
+		共有3个report
+		report1 采购单列表
+		report2 采购单CRUD
+		report3 单条采购单的明细记录
+ -->		
+		<vpanel id="common_vpanel2" align="center" width="1000px" parenttitle="新增采购申请"> 
+		<report id="title" extends="title.report1"></report>
+		
+		<report id="report2" title="申请单:request{Id}录入" type="form" depends="report1" dependsparams="txtId2=@{Id}">
+			  <display valuetdwidth="200px" labeltdwidth="150px" labelbgcolor="#f0f0f0" labelalign="right" valuealign="left">
+				   <col column="Id" displaytype="hidden"></col>
+				   <col column="deptno" label="部门编号" valuestyleproperty="style='mso-number-format:\@'">
+					    <inputbox type="selectbox" jsvalidate="isNotEmpty(#label#列不允许为空)">
+					    	<option dataset="@{select SEQ,PARAM_VALUE from sys_c_set_parm where PARAM_TYPE='dept'}" label="PARAM_VALUE" value="SEQ">
+							</option>
+						</inputbox>
+				   </col>
+ 				   <col column="filldate" label="填表日期" datatype="date{yyyy-MM-dd}"  >
+
+ 					    <inputbox type="datepicker" jsvalidate="isDate(#data#格式不对，必须为yyyy-MM-dd格式)"> 
+					    </inputbox>
+				   </col>
+					<col column="amount" label="总金额" displaytype="hidden" >
+						<inputbox defaultvalue="0.00"></inputbox>
+					</col>
+					<col column="amounttax" label="含税总金额" displaytype="hidden" >
+						<inputbox defaultvalue="0.00"></inputbox>
+					</col>
+					<col column="tag" label="状态"  displaytype="hidden" br="true" >
+						<inputbox defaultvalue='0'></inputbox>
+					</col>
+ 				   <col column="memo" label="备注" datatype="clob" valuestyleproperty="colspan='3'">
+					    <inputbox type="textareabox" styleproperty="rows='3'"></inputbox>
+				   </col>
+
+ 			  </display>
+			  <sql>
+			     <select>
+				    <value>
+					<![CDATA[SELECT * FROM pur_d_apply where  {#condition#}]]>
+					</value>
+				    <condition name="txtId2" hidden="true">
+					     <value>
+						<![CDATA[(Id like '%#data#%' )]]>
+						</value>
+				    </condition>
+			     </select>
+			  
+			  	<insert  condition="txtId2=@{Id}" refreshparentonsave="report1|true">
+		  		 	insert into pur_d_apply(@{filldate},@{deptno},amount="0.00",amounttax="0.00",tag="0",@{memo});
+			  	</insert>
+			  	<update  refreshparentonsave="report1">
+			     	update pur_d_apply(filldate=@{filldate},deptno=@{deptno},amount=@{amount},amounttax=@{amounttax},tag=@{tag},memo=@{memo}) where Id=@{Id};
+			     
+			  	</update>
+			  	<delete refreshparentonsave="report1">
+				        delete from pur_d_apply where Id=@{Id};
+						delete from pur_d_apply_detail where rid=@{Id};
+				</delete>
+			  </sql>
+ 			  <format>
+				   <value>
+					rrequest.getRequest().setAttribute("Id",Id);//存放request，以便显示标题时能取到
+				</value>
+			  </format> 
+
+		 </report>
+		
+ 		<report id="report1"  type="editablelist" title="采购申请单" pagesize="5" dataexport="richexcel" >
+			<display>
+				<col column="Id" label="编号" clickorderby="true" ></col>
+				<col column="filldate" label="填表日期"  datatype="date{yyyy-MM-dd}" clickorderby="true" ></col>
+				<col column="PARAM_VALUE" label="部门" clickorderby="true" >	</col>
+				<col column="amount" label="金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="amounttax" label="含税金额合计"  >
+					<inputbox defaultvalue="0.00"></inputbox>
+				</col>
+				<col column="tag" label="状态"  displaytype="hidden"/>
+				<col column="memo" label="备注"  ></col>
+			
+			</display>
+			<sql>
+				<select>
+					<value>
+					<![CDATA[select Id,filldate,b.PARAM_VALUE,c.amount,c.amounttax,tag,memo from pur_d_apply a left join sys_c_set_parm b on a.deptno=b.SEQ and b.PARAM_TYPE='dept' left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax from pur_d_apply_detail group by Rid) c on a.Id=c.Rid where {#condition#} or a.tag='0' order by Id]]>
+					</value>			
+					<condition name="searchId" label="申请单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+		</report>
+		
+
+		 
+		 
+   		<report id="report3"  type="editablelist2" title="采购申请单:request{Id}的明细单" depends="report1" dependsparams="txtId2=@{Id}" dataexport="richexcel" pagesize="-1">
+			<display>
+					<col column="{sequence:1}" label="序号"  />
+					<col column="Id" displaytype="hidden"  />
+					<col column="Rid" label="采购申请单号" />
+					<col column="Ridpdo" label="采购订单号" >
+					</col>
+					<col column="itemid" label="物料号" clickorderby="true" >
+ 						<inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})">
+						      <typeprompt count="15">
+							       <promptcol label="Id" title="物料号" matchmode="anywhere"></promptcol>
+							       <promptcol label="Name" title="中文名"></promptcol>
+							       <datasource>        
+							       <option dataset="@{select Id,Name from pur_b_item where {#matchcondition#}}"></option>       
+							       </datasource>
+					         </typeprompt>
+					     <autocomplete columns="Name;unit;price;pricetax" colvaluecondition="Id like '%#itemid#%'" dataset="SELECT Id itemid,Name,unit,lastprice price,lastpricetax pricetax FROM pur_b_item where  {#condition#} order by Id"></autocomplete>
+					     </inputbox> 
+					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>					
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+					<col column="qty" label="数量" clickorderby="true" />
+
+			
+			</display>
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,Ridpdo,itemid,Name,unit,qty,price,pricetax from  pur_d_apply_detail where {#condition#} order by Id]]>
+
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>
+<!-- 处理添加记录
+	还有判断采购数如果小于库存可用数,将pur_apply_detail里isok置为6
+	再根据pur_apply_detail里某一条Rid的所对应的isok是否全为6,来决定是否将pur_apply里tag置为6
+-->
+
+				<insert refreshparentonsave="report1|true">
+ 			  	    <params>
+ 			  		     <param name="master_Id" value="url{txtId2}"></param> 
+ 			  		     <param name="v1" value="foreign{select valuestock from pur_b_item where Id=@{itemid}}"></param> 
+			  	    </params>				
+   					insert into pur_d_apply_detail (Rid=#{master_Id},Ridpdo=0,@{itemid},@{Name},@{unit},@{qty},@{price},@{pricetax},isok=0);
+    				update pur_d_apply_detail set isok=6 where Rid=#{master_Id} and qty&lt;=#{v1};
+   					update pur_d_apply set tag="6" where Id in (select a.Rid from (SELECT Rid, count(Rid) c FROM pur_d_apply_detail where isok=6 GROUP by Rid) a left join (SELECT Rid, count(Rid) c FROM pur_d_apply_detail GROUP by Rid) b on a.Rid=b.Rid where a.c=b.c);
+ 				</insert >
+				
+				<update refreshparentonsave="report1|true">
+				 	<params>
+				    	<param name="master_Id" value="url{txtId2}"></param>
+				    	<param name="v1" value="foreign{select valuestock from pur_b_item where Id=@{itemid}}"></param> 
+			  	    </params>	
+			  	    	update pur_d_apply_detail (Rid=@{Rid},itemid=@{itemid},qty=@{qty}) where Id=@{Id};
+			  	    	update pur_d_apply_detail set isok=6 where Rid=#{master_Id} and qty&lt;=#{v1};
+   						update pur_d_apply set tag="6" where Id in (select a.Rid from (SELECT Rid, count(Rid) c FROM pur_d_apply_detail where isok=6 GROUP by Rid) a left join (SELECT Rid, count(Rid) c FROM pur_d_apply_detail GROUP by Rid) b on a.Rid=b.Rid where a.c=b.c);
+			  	    	
+				</update>
+
+				<delete refreshparentonsave="report1|true">
+				        delete from pur_d_apply_detail where Id=@{Id};
+
+				</delete>	
+			</sql>
+ 				<format>
+				   	<value>
+					rrequest.getRequest().setAttribute("Id",Rid);//存放request，以便显示标题时能取到
+					</value>
+			  	</format> 	
+
+		</report>
+		</vpanel> 
+
+ 
+ <!-- 下面是第三个页签 已审核过价格的采购申请单
+ 		共有2个report
+		report4 采购单列表
+		report5 单条采购单的明细记录
+		
+ 		<vpanel id="common_vpanel3" align="center" width="1000px" parenttitle="已审核并通过的采购申请" >
+		<report id="title1" extends="title.report1"></report>
+ 		<report id="report4"  extends="pur_apply.report1"  title="已审核的采购申请单"  >
+ 			<sql>
+				<select>
+					<value>
+					<![CDATA[select Id,filldate,b.PARAM_VALUE,c.amount,c.amounttax,tag,memo from pur_d_apply a left join sys_c_set_parm b on a.deptno=b.SEQ and b.PARAM_TYPE='dept' left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax  from pur_d_apply_detail group by Rid) c on a.Id=c.Rid where ({#condition#} or a.tag='2') order by Id]]>
+					</value>			
+					<condition name="searchId" label="申请单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql>
+		</report>
+		
+
+		 
+   		<report id="report5"  extends="pur_apply.report3" title="已审核的采购申请单:request{Id}的明细单" depends="report4" dependsparams="txtId2=@{Id}" dataexport="richexcel" >
+ 			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,itemid,Name,unit,qty,price,pricetax from  pur_d_apply_detail where {#condition#} order by Id]]>
+
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>
+				
+			</sql>
+			
+			<format>
+				   	<value>
+					rrequest.getRequest().setAttribute("Id",Rid);//存放request，以便显示标题时能取到
+					</value>
+			</format> 
+
+		</report>
+ 		</vpanel>
+  --> 		
+<!-- 下面是第四个页签 已审核未通过的采购申请单
+ 		共有2个report
+		report4 采购单列表
+		report5 单条采购单的明细记录
+  -->		
+ 	<vpanel id="common_vpanel4" align="center" width="1000px" parenttitle="已审核未通过的采购申请" >
+		<report id="title2" extends="title.report1"></report>
+ 		<report id="report41" extends="pur_apply.report1">
+ 			<sql>
+				<select>
+					<value>
+					<![CDATA[select Id,filldate,b.PARAM_VALUE,c.amount,c.amounttax,tag,memo from pur_d_apply a left join sys_c_set_parm b on a.deptno=b.SEQ and b.PARAM_TYPE='dept' left join (select rid,sum(qty*price) amount,sum(qty*pricetax) amounttax  from pur_d_apply_detail group by Rid) c on a.Id=c.Rid where ({#condition#} or a.tag='9') order by Id]]>
+					</value>			
+					<condition name="searchId" label="申请单编码">
+						<value>
+							<![CDATA[(Id like  '%#data#%' )]]>
+						</value>
+					</condition>
+				</select>
+			</sql></report>  		
+ 		<report id="report51" extends="pur_apply.report3" depends="report41" dependsparams="txtId2=@{Id}">
+ 			<display>
+					<col column="{sequence:1}" label="序号"  />
+					<col column="Id" displaytype="hidden"  />
+					<col column="Rid" label="采购单号" clickorderby="true" >
+					</col>
+					<col column="itemid" label="物料号" clickorderby="true" >
+ 						<inputbox jsvalidate="isNotEmpty(${invalid.isnotempty})">
+						      <typeprompt count="15">
+							       <promptcol label="Id" title="物料号" matchmode="anywhere"></promptcol>
+							       <promptcol label="Name" title="中文名"></promptcol>
+							       <datasource>        
+							       <option dataset="@{select Id,Name from pur_b_item where {#matchcondition#}}"></option>       
+							       </datasource>
+					         </typeprompt>
+					     <autocomplete columns="Name;price;pricetax" colvaluecondition="Id like '%#itemid#%'" dataset="SELECT Id itemid,Name,lastprice price,lastpricetax pricetax FROM pur_b_item where  {#condition#} order by Id"></autocomplete>
+					     </inputbox> 
+					</col>
+						
+					<col column="Name" label="名称" clickorderby="true" >
+					</col>
+					<col column="unit" label="单位" clickorderby="true" >
+					</col>					
+					<col column="price" label="单价" clickorderby="true" />
+					<col column="pricetax" label="含税单价" clickorderby="true" />
+					<col column="qty" label="数量" clickorderby="true" />
+					<col column="isok" label="问题项" clickorderby="true">
+					</col>
+
+			
+			</display>
+			<sql>
+				<select>
+					<value>
+						<![CDATA[select Id,Rid,Ridpdo,itemid,Name,unit,qty,price,pricetax,isok from  pur_d_apply_detail where {#condition#} order by Id]]>
+
+					</value>			
+   					<condition name="txtId2" hidden="true">
+						<value>
+							<![CDATA[(Rid like  '%#data#%' )]]>
+						</value>
+					</condition>  
+				</select>
+				
+			</sql>
+			
+			<format>
+			   <imports>    
+                    <import>java.text.*</import>    
+               </imports>   
+ 				   	<value>
+					rrequest.getRequest().setAttribute("Id",Rid);<!-- 存放request，以便显示标题时能取到 -->
+					</value>
+
+			</format> 
+			
+		<footer><![CDATA[<font color='#ff0000'>说明：</font><font color='#0000ff'>问题项栏里是"1"表示该项没有通过审核,"0"表示通过审核</font>]]></footer>	
+ 		</report> 
+ 	</vpanel> 	
+	
+ 		
+ 		</tabpanel>
+ 		
+	</page>
+</applications>
+			   

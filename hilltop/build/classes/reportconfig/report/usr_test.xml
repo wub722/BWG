@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<applications xmlns="http://www.wabacus.com"
+			   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			   xsi:schemaLocation="http://www.wabacus.com ../xsd/wabacus.applications.xsd">
+	<page id="usr_test">
+		<header>${top.header}</header>
+		<vpanel id="common_vpanel" align="center" width="1000px">
+		<report id="title" extends="title.report1"></report>
+
+		<report id="report1" title="员工基本信息列表" type="editablelist2"  dataexport="richexcel">
+	
+		<display>
+			<col column="code" label="编码" />
+			<col column="name" label="名称" />
+			<col column="age" label="年龄" />
+		</display>
+		<sql>
+			<select>
+				<value>
+					select code,name,age from usr_test;
+				</value>
+			</select>
+			<insert>
+				insert into usr_test (@{code},@{name},age="10.0212");
+				</insert>
+			<update>
+				update usr_test (@{name},@{age}) where code=@{code};
+			</update>
+			<delete>
+				delete from usr_test where code=@{code};
+			</delete>
+			
+		</sql>
+		
+		</report>
+		</vpanel>
+	</page>
+			   
+</applications>			   

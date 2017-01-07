@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<applications xmlns="http://www.wabacus.com"
+			   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			   xsi:schemaLocation="http://www.wabacus.com ../xsd/wabacus.applications.xsd">
+			   
+<!-- 	copyright©2014	WuBing  All rights reserved.-->			   
+
+<!-- 	ver1.0	2014-8-6 15:16
+		本xml实现销售基础数据的CRUD{增加(Create)、查询(Retrieve)（重新得到数据）、更新(Update)和删除(Delete)}功能
+		基础数据表有2个
+		bp是供应商列表
+		item是物料列表
+-->			   
+			   
+			   
+	<page id="sale_bp">
+		<header>${top.header}</header>
+		<vpanel id="common_vpanel" align="center" width="1000px">
+		<report id="title" extends="title.report1"></report>
+		<report id="report1" type="editablelist2" title="客户列表" dataexport="richexcel">
+			<display>
+				<col column="Id" label="ID" clickorderby="true" ></col>
+				<col column="Name" label="名称" clickorderby="true" ></col>
+				<col column="address1" label="地址1" clickorderby="true" ></col>
+				<col column="address2" label="地址2" clickorderby="true" ></col>
+				<col column="contact" label="联系人" clickorderby="true" ></col>
+				<col column="cellphone" label="手机" clickorderby="true" ></col>
+				<col column="telphone" label="固定电话" clickorderby="true" ></col>
+				<col column="email" label="电子邮件地址" clickorderby="true" ></col>
+				<col column="zip" label="邮编" clickorderby="true" ></col>
+				<col column="taxid" label="税号" clickorderby="true" ></col>
+				<col column="group1" label="分组1" clickorderby="true" ></col>
+				<col column="group2" label="分组2" clickorderby="true" ></col>
+				<col column="group3" label="客户等级" clickorderby="true" ></col>
+				<col column="period" label="账期" clickorderby="true" ></col>
+				<col column="d_address1" label="送货地址1" clickorderby="true" ></col>
+				<col column="d_address2" label="送货地址2" clickorderby="true" ></col>
+				<col column="d_address3" label="送货地址3" clickorderby="true" ></col>
+				<col column="d_address4" label="送货地址4" clickorderby="true" ></col>
+				<col column="d_address5" label="送货地址5" clickorderby="true" ></col>
+				<col column="account" label="账户余额" clickorderby="true" ></col>
+				<col column="salesman" label="销售员" clickorderby="true" ></col>
+			</display>
+			<sql>
+				<select>
+    				<value>
+        				<![CDATA[select Id,Name,address1,address2,contact,cellphone,telphone,email,zip,taxid,group1,group2,group3,period,d_address1,d_address2,d_address3,d_address4,d_address5,account,salesman from s_b_bp where {#condition#} order by Id]]>
+    				</value>
+
+
+					<condition name="searchId" label="客户编码">
+						<value>
+							<![CDATA[(Id = #data# )]]>
+						</value>
+					</condition>
+					<condition name="searchName" label="名称">
+						<value>
+							<![CDATA[(Name like  '%#data#%' )]]>
+						</value>
+					</condition>
+
+				</select>
+				<insert addposition="top">
+    				insert into s_b_bp (@{Id},@{Name},@{address1},@{address2},@{contact},@{cellphone},@{telphone},@{email},@{zip},@{taxid},@{group1},@{group2},@{group3},@{period},@{d_address1},@{d_address2},@{d_address3},@{d_address4},@{d_address5},@{account},@{salesman});
+
+				</insert>
+				<update>
+					update s_b_bp (Id=@{Id},Name=@{Name},address1=@{address1},address2=@{address2},contact=@{contact},cellphone=@{cellphone},telphone=@{telphone},email=@{email},zip=@{zip},taxid=@{taxid},group1=@{group1},group2=@{group2},group3=@{group3},period=@{period},d_address1=@{d_address1},d_address2=@{d_address2},d_address3=@{d_address3},d_address4=@{d_address4},d_address5=@{d_address5},account=@{account},salesman=@{salesman}) where Id=@{Id};
+
+				</update>
+				 <delete>
+					    delete from s_b_bp where Id=@{Id};
+			  </delete>
+			</sql>
+
+		</report>
+		</vpanel>
+	</page>
+
+<!-- 下面是产品表的页面   -->	
+     	
+	<page id="sale_item">
+		<header>${top.header}</header>
+		<vpanel id="common_vpanel" align="center" width="1000px">
+		<report id="report1" type="editablelist2" title="物料清单" dataexport="richexcel">
+			<display>
+				<col column="Id" label="ID" clickorderby="true" ></col>
+				<col column="did" label="图纸号" clickorderby="true" ></col>
+				<col column="Name" label="名称" clickorderby="true" ></col>
+				<col column="weight" label="重量(克)" clickorderby="true" ></col>
+				<col column="capicity" label="容量(毫升)" clickorderby="true" ></col>
+				<col column="pingxing" label="瓶型" width="60px">
+					<inputbox type="selectbox">
+							      <option value="1" label="方形"></option> 
+							      <option value="2" label="圆形"></option>
+							      <option value="3" label="椭圆形"></option>
+							      <option value="4" label="三角形"></option>
+							      <option value="5" label="异形"></option>
+					</inputbox>
+				</col>
+				<col column="gongyi" label="工艺" width="60px" >
+					<inputbox type="radiobox">
+							      <option value="0" label="吹吹"></option> 
+							      <option value="1" label="压吹"></option>
+					</inputbox>
+				</col>
+				<col column="hjgdm" label="装饰加工代码" clickorderby="true" ></col>
+				<col column="hjg" label="加工内容" clickorderby="true" ></col>
+				<col column="initnum" label="初始数量" clickorderby="true" ></col>
+				<col column="num" label="目前数量" clickorderby="true" ></col>
+				<col column="yxslzpc" label="允许数量正偏差" clickorderby="true" ></col>
+				<col column="yxslfpc" label="允许数量负偏差" clickorderby="true" ></col>
+				<col column="zsys" label="装饰颜色" clickorderby="true" ></col>
+				<col column="zldj" label="质量等级" clickorderby="true" ></col>
+				<col column="bc" label="版次" clickorderby="true" ></col>
+				<col column="wzrq" label="位置日期" clickorderby="true" ></col>
+				<col column="wlh" label="物料号" clickorderby="true" ></col>
+				<col column="sa" label="SA号" clickorderby="true" ></col>
+				<col column="p_zxl" label="装箱量" clickorderby="true" ></col>
+				<col column="p_tpl" label="托盘量" clickorderby="true" ></col>
+				<col column="p_bztrq" label="包装图日期" clickorderby="true" ></col>
+				<col column="p_pzdys" label="标识单颜色" clickorderby="true" ></col>
+				<col column="memo" label="备注" clickorderby="true" ></col>
+
+			</display>
+			<sql>
+				<select>
+				  	<value>
+        				<![CDATA[select Id,did,Name,weight,capicity,pingxing,gongyi,hjgdm,hjg,initnum,num,yxslzpc,yxslfpc,zsys,zldj,bc,wzrq,wlh,sa,p_zxl,p_tpl,p_bztrq,p_pzdys,memo from  s_b_item where {#condition#} order by Id]]>
+					</value>
+				<condition name="searchId" label="产品编码">
+					<value>
+						<![CDATA[(Id like  '%#data#%' )]]>
+					</value>
+				</condition>
+				<condition name="searchName" label="产品名称">
+					<value>
+						<![CDATA[(Name like  '%#data#%' )]]>
+					</value>
+				</condition>
+				</select>
+				
+				<insert>
+				    insert into s_b_item (@{Id},@{did},@{Name},@{weight},@{capicity},@{pingxing},@{gongyi},@{hjgdm},@{hjg},@{initnum},@{num},@{yxslzpc},@{yxslfpc},@{zsys},@{zldj},@{bc},@{wzrq},@{wlh},@{sa},@{p_zxl},@{p_tpl},@{p_bztrq},@{p_pzdys},@{memo});
+				</insert>
+				<update>
+				    update s_b_item (Id=@{Id},did=@{did},Name=@{Name},weight=@{weight},capicity=@{capicity},pingxing=@{pingxing},gongyi=@{gongyi},hjgdm=@{hjgdm},hjg=@{hjg},initnum=@{initnum},num=@{num},yxslzpc=@{yxslzpc},yxslfpc=@{yxslfpc},zsys=@{zsys},zldj=@{zldj},bc=@{bc},wzrq=@{wzrq},wlh=@{wlh},sa=@{sa},p_zxl=@{p_zxl},p_tpl=@{p_tpl},p_bztrq=@{p_bztrq},p_pzdys=@{p_pzdys},memo=@{memo}) where Id=@{Id};
+				</update>
+
+				<delete>
+			        delete from s_b_item where Id=@{Id};
+				</delete>
+		
+			</sql>
+		</report>
+		</vpanel>
+	</page>	
+
+</applications>
