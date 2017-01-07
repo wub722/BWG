@@ -1,0 +1,30 @@
+==========2017-01-06==================
+目的：建立一个基本信息表和一个日常业务表。基本表的一条记录可在业务表里对应多个记录。业务表里每条记录对应每一次的实际业务。
+业务表的字段应包含4部分信息（基本表里的对应记录(Pid，PName，业务数据（部门Rid，Name，Memo，Date），录入人数据（CreatorId，CreatorName,CreateDate),标志位(Tag or DataLevel)
+Id，				自增长的primekey
+Pid，			对应基本表的ID
+PName，			对应基本表的name
+Rid，			部门ID
+Name，			分类名称（例如：最新消息，单腔模试制时间）
+Memo，			消息等各类文字信息
+Date，			日期
+CreatorId，
+CreatorName，
+CreatorDate，
+dataLevel		数据级别 0正常 1审核中 2被否决 -1已删除 -2草稿
+
+
+在mysql数据库schemas：hilltop里建立2张表，test001和test002进行测试。
+
+问题一，如何将test002里的分类名称（纵向表）按
+基本表ID分类（纵轴-列），各分类名称（横轴-行）汇聚和展示数据。
+技巧一:mysql行列转置
+
+select PiD，PName，
+group_concat（case Rid=“1x" then Memo end) as 销售部最新消息
+group_concat（case Rid=“2x" then date end) as 图纸提供时间
+from test002
+group by Pid
+=======================================================================================
+
+
